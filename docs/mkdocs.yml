@@ -51,5 +51,24 @@ markdown_extensions:
 nav:
   - "Welcome":
     - "overview/index.md"
-  - "Getting Started": "getting_started/"
-  - "Language Reference": "language_reference/"
+  - "Getting Started": 
+    - "getting_started/index.md"
+    - "Python Adapters": "getting_started/python_adapters.md"
+  - "Language Reference":
+    - "language_reference/index.md"
+    - "Glossary": "language_reference/glossary.md"
+    - "Schema":
+      - "language_reference/schema/index.md"
+    - "Querying":
+      - "language_reference/querying/index.md"
+      - "Examples": "language_reference/querying/examples.md"
+      - "Directives":
+        - "@output": "language_reference/querying/output.md"
+        - "@filter": "language_reference/querying/filter.md"
+        - "@tag": "language_reference/querying/tag.md"
+        - "@optional": "language_reference/querying/optional.md"
+        - "@recurse": "language_reference/querying/recurse.md"
+        - "@fold": "language_reference/querying/fold.md"
+        - "@transform": "language_reference/querying/transform.md"
+      - "Type Coercions": "language_reference/querying/type_coercion.md"
+      - "Edge Parameters": "language_reference/querying/edge_parameters.md"
