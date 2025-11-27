@@ -312,6 +312,237 @@ Only follows active users at each level of recursion. An inactive user stops tha
 
 Follows all users but only outputs those who are active. Recursion continues through inactive users.
 
+## Edge Parameters vs @filter: Key Differences
+
+Understanding when to use edge parameters versus `@filter` directives is crucial for writing efficient and correct queries.
+
+### Conceptual Difference
+
+**Edge parameters** are part of the edge definition and control which edges are traversed in the first place:
+- Applied **before** edge traversal
+- Defined in the schema for specific edges
+- Can prevent edges from being followed at all
+- The adapter's `resolve_neighbors` method receives the parameter values
+
+**@filter directives** filter vertices after they've been reached:
+- Applied **after** edge traversal
+- Generic mechanism that works on any property
+- Vertices are reached first, then filtered
+- The adapter still traverses the edge and returns all neighbors
+
+### Simple Case: No @optional or @recurse
+
+When not using `@optional` or `@recurse`, edge parameters and filters are **semantically equivalent** (but may differ in performance):
+
+```graphql
+# Using edge parameter
+{
+    Directory {
+        files(extension: "txt") {
+            name @output
+        }
+    }
+}
+
+# Using filter - semantically equivalent
+{
+    Directory {
+        files {
+            extension @filter(op: "=", value: ["$ext"])
+            name @output
+        }
+    }
+}
+```
+
+Both produce the same results, but performance may differ based on adapter implementation.
+
+### When They Differ: @optional and @recurse
+
+With `@optional` or `@recurse`, edge parameters and filters have **different semantics**:
+
+#### With @optional
+
+```graphql
+# Edge parameter: considers edge non-existent if no matches
+{
+    Directory {
+        files(extension: "txt") @optional {
+            name @output
+        }
+    }
+}
+# Result: null if no .txt files exist
+
+# Filter: edge exists, but all neighbors filtered out
+{
+    Directory {
+        files @optional {
+            extension @filter(op: "=", value: ["$ext"])
+            name @output
+        }
+    }
+}
+# Result: null even if .pdf files exist (edge existed, but filtered)
+```
+
+The difference: edge parameters make the edge itself conditional on the predicate, while filters process vertices after the edge is traversed.
+
+#### With @recurse
+
+```graphql
+# Edge parameter: predicate applies at each recursion level
+{
+    User {
+        follows(active: true) @recurse(depth: 3) {
+            username @output
+        }
+    }
+}
+# Only recurses through active users; stops at inactive ones
+
+# Filter: predicate only applies to final results
+{
+    User {
+        follows @recurse(depth: 3) {
+            active @filter(op: "=", value: ["$active"])
+            username @output
+        }
+    }
+}
+# Recurses through all users, but only outputs active ones
+```
+
+### When to Use Each
+
+**Use edge parameters when**:
+- The schema defines parameters for the edge
+- You want to limit which edges are traversed (especially important for expensive operations)
+- The filtering criterion is fundamental to the edge semantics
+- Using `@optional` and you want the edge to be considered non-existent if criteria aren't met
+- Using `@recurse` and you want the predicate to apply at each recursion level
+- The adapter can optimize by not fetching filtered-out neighbors at all
+
+**Use @filter when**:
+- You need to filter based on properties that aren't edge parameters
+- You need complex filtering conditions (multiple operators, tagged values)
+- You want to filter after reaching vertices through the edge
+- The filtering criterion is a query-time decision, not fundamental to the edge
+
+**Use both when**:
+- You want to combine edge-level filtering with additional vertex-level filtering
+- Example: `posts(category: "tech")` to limit to tech posts, then `likes @filter(op: ">", value: ["$min"])` to further filter by popularity
+
+### Performance Implications
+
+#### Adapter-Level Optimization
+
+Edge parameters enable **adapter-level optimization**:
+
+```graphql
+# Good: Adapter can query database with WHERE clause
+{
+    User {
+        posts(status: "published") {
+            title @output
+        }
+    }
+}
+
+# Adapter implementation:
+# SELECT * FROM posts WHERE user_id = ? AND status = 'published'
+```
+
+With filters, the adapter may need to fetch all posts, then Trustfall filters them:
+
+```graphql
+# Less optimal: Adapter fetches all posts
+{
+    User {
+        posts {
+            status @filter(op: "=", value: ["$status"])
+            title @output
+        }
+    }
+}
+
+# Adapter implementation:
+# SELECT * FROM posts WHERE user_id = ?  (fetches all)
+# Then Trustfall filters by status
+```
+
+**However**, this depends entirely on your adapter implementation. A well-designed adapter could optimize either approach.
+
+#### Predicate Pushdown
+
+Trustfall itself does **not** automatically push down `@filter` predicates to adapters as edge parameters. This is an explicit design choice:
+
+- **Edge parameters**: Explicitly passed to `resolve_neighbors()`, enabling the adapter to optimize
+- **@filter directives**: Evaluated by Trustfall's query interpreter after vertices are returned
+
+**Recommendation**: If you control both the schema and adapter, use edge parameters for filterable edges when performance matters. The adapter can then optimize at the data source level (e.g., database WHERE clauses, API query parameters).
+
+#### Memory and Network Efficiency
+
+Edge parameters can significantly reduce:
+- **Network traffic**: Fewer vertices transferred from data sources
+- **Memory usage**: Fewer vertices held in memory
+- **Processing time**: Less data to process
+
+Example impact:
+
+```graphql
+# Fetches 1,000,000 posts, filters to 100
+{
+    User {
+        posts {  # Adapter returns 1M posts
+            created_at @filter(op: ">=", value: ["$recent"])
+            title @output
+        }
+    }
+}
+
+# Fetches only 100 posts
+{
+    User {
+        posts(since: "$recent") {  # Adapter returns 100 posts
+            title @output
+        }
+    }
+}
+```
+
+The second query is much more efficient if the adapter can filter at the source (e.g., database query, API parameter).
+
+### Best Practices
+
+1. **Check the schema first**: Use edge parameters if they're defined for your use case
+2. **Design schemas with performance in mind**: Add edge parameters for common filtering needs
+3. **Optimize adapters**: Implement edge parameter filtering at the data source level
+4. **Combine both**: Use edge parameters for coarse filtering, `@filter` for fine-grained conditions
+5. **Measure**: Profile your queries to understand actual performance impact
+
+### Example: Combining Edge Parameters and Filters
+
+```graphql
+{
+    Repository {
+        name @output
+        
+        # Edge parameter: limits to open issues (optimized at adapter)
+        issues(state: "open") {
+            # Filter: additional filtering on properties
+            created_at @filter(op: ">=", value: ["$since"])
+            priority @filter(op: "one_of", value: ["$priorities"])
+            
+            title @output
+        }
+    }
+}
+```
+
+This query uses edge parameters to limit the adapter query, then applies additional filters for fine-grained control.
+
 ## Common patterns
 
 ### Pagination
