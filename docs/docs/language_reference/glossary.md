@@ -68,6 +68,10 @@ In our Flutter example app, entrypoints include:
 
 SQL doesn't have an equivalent concept since querying may begin at any table. Trustfall supports querying any data source, not just SQL, and many data sources do not allow listing all instances of a particular data point. For example, GitHub doesn't support enumerating all its millions of registered users, so the equivalent of a SQL `SELECT * FROM GitHubUser` query is not possible against the GitHub APIs. In Trustfall, we model these querying restrictions by separating the [vertex types](#vertex-type) from the entrypoints where querying may begin.
 
+### query
+
+A Trustfall query is a request for data, written in a GraphQL-like syntax, that specifies which data to retrieve and how to filter, transform, and aggregate it. Queries start from an [entrypoint](#entrypoint), traverse [edges](#edge) between [vertices](#vertex), and use [directives](#directive) to control the output.
+
 ### adapter
 
 A Trustfall plugin that enables querying a specific dataset with the Trustfall query interpreter. It acts as a connector between the Trustfall APIs and the underlying data source, which might be a file format, an API, a database, etc.
