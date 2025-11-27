@@ -51,7 +51,9 @@ markdown_extensions:
 nav:
   - "Welcome":
     - "overview/index.md"
-  - "Getting Started": "getting_started/index.md"
+  - "Getting Started": 
+    - "getting_started/index.md"
+    - "Python Adapters": "getting_started/python_adapters.md"
   - "Language Reference":
     - "language_reference/index.md"
     - "Glossary": "language_reference/glossary.md"
