@@ -2,6 +2,73 @@
 
 Trustfall provides Python bindings that allow you to query data sources using Python adapters. This guide covers how to implement adapters, their features, limitations, and performance considerations.
 
+## Python vs Rust Adapter Comparison
+
+| Feature | Python Adapter | Rust Adapter | Notes |
+|---------|----------------|--------------|-------|
+| **Language** | Python 3.10+ | Rust | |
+| **Installation** | `pip install trustfall` | Add to `Cargo.toml` | Python has pre-built wheels for common platforms |
+| **Type Safety** | Runtime (dynamic) | Compile-time (static) | Rust catches type errors at compile time |
+| **Performance** | Good (with Python-Rust overhead) | Excellent (native speed) | Python has boundary crossing overhead |
+| **Required Methods** | 4 methods | 4 methods | Same core interface |
+| **Method Signatures** | Dynamic typing | Generic types with lifetimes | Rust uses `&ResolveInfo` parameter |
+| **Vertex Type** | Any Python type | `Clone + Debug + 'vertex` | Rust requires Clone and Debug traits |
+| **Query Features** | ✅ All supported | ✅ All supported | Both support all directives |
+| **@output** | ✅ Supported | ✅ Supported | |
+| **@filter** | ✅ Supported | ✅ Supported | |
+| **@tag** | ✅ Supported | ✅ Supported | |
+| **@optional** | ✅ Supported | ✅ Supported | |
+| **@recurse** | ✅ Supported | ✅ Supported | |
+| **@fold** | ✅ Supported | ✅ Supported | |
+| **@transform** | ✅ Supported | ✅ Supported | |
+| **Type Coercion** | ✅ Supported | ✅ Supported | |
+| **Edge Parameters** | ✅ Supported | ✅ Supported | |
+| **Query Variables** | ✅ Supported | ✅ Supported | |
+| **Lazy Evaluation** | ✅ Supported | ✅ Supported | Both support iterators/generators |
+| **Schema Introspection** | ❌ Not available | ❌ Not available | Must know schema structure |
+| **Optimization Hints** | ❌ Not exposed | ✅ `ResolveInfo` & `ResolveEdgeInfo` | Rust can access filter hints for optimization |
+| **Predicate Pushdown** | ❌ Manual only | ✅ Via hint system | Rust adapters can check `statically_required_property()` |
+| **Required Properties** | ❌ Not exposed | ✅ `required_properties()` | Rust can see which properties are needed |
+| **Parallel Execution** | Manual (ThreadPoolExecutor) | Manual (Rayon, tokio, etc.) | Neither automatic, both possible |
+| **Async Support** | ❌ Not supported | ✅ Supported (with async runtime) | Rust can use async/await in adapters |
+| **Error Handling** | Python exceptions | `Result<T, E>` types | Different error paradigms |
+| **Memory Management** | Automatic (GC) | Manual (ownership) | Rust prevents data races at compile time |
+| **Iterator Protocol** | Python iterators | Rust iterators | Similar concepts, different APIs |
+| **Context Ordering** | Must preserve order | Must preserve order | Both require maintaining context order |
+| **Stub Generation** | ❌ Not available | ✅ `trustfall_stubgen` | Rust has automatic stub generation tool |
+| **IDE Support** | Standard Python tools | rust-analyzer | Both have good IDE support |
+| **Debugging** | Python debuggers (pdb, etc.) | Rust debuggers (lldb, gdb) | |
+| **Testing** | pytest, unittest | cargo test, proptest | |
+| **Ecosystem** | PyPI packages | crates.io crates | |
+| **Learning Curve** | Lower (if know Python) | Higher (ownership, lifetimes) | |
+| **Production Ready** | ✅ Yes | ✅ Yes | Both stable for production use |
+| **Use Case** | Rapid prototyping, scripting | Performance-critical, type safety | Choose based on requirements |
+
+### When to Choose Python
+
+- **Rapid development**: Faster prototyping and iteration
+- **Python ecosystem**: Need to use Python libraries (pandas, numpy, etc.)
+- **Team expertise**: Team knows Python better than Rust
+- **Scripting/automation**: One-off queries or data exploration
+- **Acceptable overhead**: Python-Rust boundary overhead is acceptable
+- **Dynamic data**: Working with highly dynamic or loosely-typed data
+
+### When to Choose Rust
+
+- **Performance critical**: Need maximum query performance
+- **Type safety**: Want compile-time guarantees and error prevention
+- **Large scale**: Building production systems with complex queries
+- **Optimization**: Need access to hint system for predicate pushdown
+- **Async operations**: Require async/await for I/O operations
+- **Resource constrained**: Running on systems with limited resources
+
+### Hybrid Approach
+
+You can also use both:
+- **Prototype in Python**: Develop and test adapter logic quickly
+- **Optimize in Rust**: Rewrite performance-critical adapters in Rust
+- **Mixed adapters**: Use Python for some data sources, Rust for others in the same application
+
 ## Quick Start
 
 ### Installing Trustfall
